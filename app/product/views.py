@@ -1,21 +1,35 @@
 import json
 
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User as DjangoUser
 from rest_framework import generics, status
-from rest_framework.decorators import parser_classes
+from rest_framework.authtoken.models import Token
+from rest_framework.decorators import parser_classes, permission_classes
 from rest_framework.parsers import MultiPartParser
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.product.models import User, Rate
 from app.product.serializers import UserSerializer, RateSerializer
-from jobs.jobs import update
-from django.contrib.auth.models import User as DjangoUser
+
+
+class LogIn(APIView):
+
+    def post(self, request):
+        username = request.data["username"]
+        password = request.data["password"]
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            token = Token.objects.get_or_create(user=user)
+            return Response(str(token[0].key), status=status.HTTP_200_OK)
+        else:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
 
 
 class UsersListView(APIView):
-    permission_classes = (IsAdminUser,)
 
+    @permission_classes((IsAuthenticated, IsAdminUser))
     def get(self, request):
         self.check_permissions(request)
         return Response([i.to_json() for i in User.objects.all()])
@@ -24,6 +38,7 @@ class UsersListView(APIView):
 class DepartmentsListView(generics.ListAPIView):
     serializer_class = UserSerializer
 
+    @permission_classes((IsAuthenticated,))
     def get_queryset(self):
         return User.objects.filter(department=self.kwargs.get("dep"))
 
@@ -31,6 +46,7 @@ class DepartmentsListView(generics.ListAPIView):
 class RatesViewList(generics.ListAPIView):
     serializer_class = RateSerializer
 
+    @permission_classes((IsAuthenticated,))
     def get_queryset(self):
         user = User.objects.get(id=self.kwargs['userId'])
         rates = Rate.objects.filter(assessed_user_id=user.id)
@@ -39,13 +55,14 @@ class RatesViewList(generics.ListAPIView):
 
 class DepartmentsView(APIView):
 
+    @permission_classes((IsAuthenticated,))
     def get(self, request):
         return Response([i.department for i in User.objects.all()])
 
 
 class UserImageView(APIView):
-    permission_classes = (IsAdminUser,)
 
+    @permission_classes((IsAdminUser, IsAuthenticated))
     def post(self, request, userId):
         self.check_permissions(request)
         user = User.objects.get(id=userId)
@@ -56,6 +73,7 @@ class UserImageView(APIView):
             return Response(ser.data, status=status.HTTP_200_OK)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @permission_classes((IsAuthenticated,))
     def get(self, request, userId):
         self.check_permissions(request)
         user = User.objects.get(id=userId)
@@ -63,10 +81,10 @@ class UserImageView(APIView):
                         status=status.HTTP_200_OK)
 
 
-@parser_classes((MultiPartParser,))
 class UserView(APIView):
-    permission_classes = (IsAdminUser,)
 
+    @parser_classes((MultiPartParser,))
+    @permission_classes((IsAdminUser, IsAuthenticated))
     def post(self, request):
         self.check_permissions(request)
         _data = json.loads(request.data['data'])
@@ -78,42 +96,40 @@ class UserView(APIView):
             return Response(ser.data, status=status.HTTP_201_CREATED)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @permission_classes((IsAdminUser, IsAuthenticated))
     def delete(self, request, userId):
         self.check_permissions(request)
         user = User.objects.get(id=userId)
+        djUser = DjangoUser.objects.get(username=user.login)
         user.delete()
+        djUser.delete()
         return Response("User was deleted", status=status.HTTP_200_OK)
 
-    def get(self, request, userId):
-        return Response(User.objects.get(id=userId).to_json(), status=status.HTTP_200_OK)
+    @permission_classes((IsAuthenticated,))
+    def get(self, request):
+        return Response(User.objects.get(id=request.user.id).to_json(), status=status.HTTP_200_OK)
 
+    @permission_classes((IsAdminUser, IsAuthenticated))
     def patch(self, request, userId):
         self.check_permissions(request)
         user = User.objects.get(id=userId)
         ser = UserSerializer(user, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
-            return Response(request.data, status=status.HTTP_200_OK)
+            return Response(ser.data, status=status.HTTP_200_OK)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class RateView(APIView):
 
+    @permission_classes((IsAuthenticated,))
     def post(self, request):
         ser = RateSerializer(data=request.data)
         if ser.is_valid():
             ser.save()
             return Response(ser.data, status=status.HTTP_200_OK)
-            update()
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def patch(self, request):
-        rate = Rate.objects.get(assessed_user_id=request.data['assessed_user'],
-                                reviewer_user_id=request.data['reviewer_user'])
+    # @permission_classes((IsAuthenticated,))
+    # def get(self, request, reviewer_id, assessed_id):
 
-        ser = RateSerializer(rate, data=request.data, partial=True)
-        if ser.is_valid():
-            ser.save()
-            update()
-            return Response(ser.data, status=status.HTTP_200_OK)
-        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)

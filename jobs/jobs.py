@@ -55,10 +55,3 @@ def monthly():
     rates = [i.to_json() for i in list(Rate.objects.filter(date__gte=timezone.now() - timedelta(days=30)))]
     users = [i['assessed_user_id'] for i in Rate.objects.order_by().values('assessed_user_id').distinct()]
     save(rates, users, 'MONTH')
-
-
-def update():
-    daily()
-    monthly()
-    weekly()
-    all_time()

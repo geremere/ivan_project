@@ -9,6 +9,8 @@ class User(models.Model):
     login = models.CharField(max_length=50, unique=True)
     password = models.CharField(max_length=50)
     image = models.ImageField(null=True, blank=True, upload_to="images/")
+    departments_filter = models.CharField(max_length=1000)
+    black_list = models.CharField(max_length=1000)
 
     class Meta:
         db_table = "users"

@@ -23,8 +23,31 @@ class User(models.Model):
             "position": self.position,
             "login": self.login,
             "image": "http://localhost:8000/api/v1" + self.image.url if self.image is not None else None,
+            "place_in_the_ranking": self.get_place_in_the_ranking(),
             "rates": [i.to_json() for i in RateHistory.objects.filter(user_id=self.id)]
         }
+
+    def to_short_json(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "department": self.department,
+            "position": self.position,
+            "login": self.login,
+            "image": "http://localhost:8000/api/v1" + self.image.url if self.image is not None else None
+        }
+
+    def get_place_in_the_ranking(self):
+        rates = RateHistory.objects.filter(frequency="month")
+        user_avg = list()
+        for rate in rates:
+            user_avg.append([rate.user_id, (rate.benevolence + rate.quality + rate.speed) / 3])
+        sorted_users = sorted(user_avg, key=lambda x: x[1], reverse=True)
+        res = -1
+        for i in range(len(sorted_users)):
+            if sorted_users[i][0] == self.id:
+                res = i + 1
+        return "no place in ranking" if res == -1 else res
 
 
 class Rate(models.Model):

@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from app.product.models import Rate, RateHistory
+from app.product.models import Rate, RateHistory, User
 
 
 def save(rates, user_ids, freq):
@@ -55,3 +55,10 @@ def monthly():
     rates = [i.to_json() for i in list(Rate.objects.filter(date__gte=timezone.now() - timedelta(days=30)))]
     users = [i['assessed_user_id'] for i in Rate.objects.order_by().values('assessed_user_id').distinct()]
     save(rates, users, 'MONTH')
+
+
+def clear_black_list():
+    users = User.objects.all()
+    for user in users:
+        user.black_list = ""
+        user.save()

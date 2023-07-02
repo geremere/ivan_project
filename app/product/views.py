@@ -132,8 +132,10 @@ class UsersForRate(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
+        user = User.objects.get(login=request.user.username)
         black_list = list(filter(lambda it: it != '',
                                  list(User.objects.get(login=request.user.username).black_list.split(","))))
+        black_list.append(user.id)
         black_list = set([int(x) for x in black_list])
         dep_filter = set(
             filter(lambda it: it != '', User.objects.get(login=request.user.username).departments_filter.split(",")))
